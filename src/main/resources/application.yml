@@ -1,0 +1,19 @@
+spring:
+    application:
+        name: "temporal-demo-ui"
+
+    thymeleaf:
+        prefix: "classpath:/templates/"
+        suffix: ".html"
+        mode: HTML
+
+
+demonstration:
+    test: Hello
+    demo:
+        - name: Hello World
+          link: hello-world
+          description: Simple workflow to return a greeting.
+        - name: transfer
+          link: transfer
+          description: Demonstrate using Temporal to transfer money from one account to another.  Includes approval workflows, error handling, retries etc.
