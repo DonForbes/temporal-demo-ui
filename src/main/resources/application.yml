@@ -7,7 +7,6 @@ spring:
         suffix: ".html"
         mode: HTML
 
-
 demonstration:
     test: Hello
     demo:
