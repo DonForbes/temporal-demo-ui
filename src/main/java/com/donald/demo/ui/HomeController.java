@@ -14,16 +14,22 @@ import java.util.List;
 
 import com.donald.demo.ui.model.Demonstration;
 import com.donald.demo.ui.model.moneytransfer.MoneyTransferModel;
+import com.donald.demo.ui.model.moneytransfer.MoneyTransferResponse;
+import com.donald.demo.ui.model.moneytransfer.MoneyTransferState;
 import com.donald.demo.ui.model.moneytransfer.WorkflowStatus;
 import com.donald.demo.ui.util.TemporalClient;
 
+import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.api.filter.v1.StartTimeFilter;
 import io.temporal.api.filter.v1.WorkflowTypeFilter;
+import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
+import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
 import io.temporal.api.workflowservice.v1.ListClosedWorkflowExecutionsRequest;
 import io.temporal.api.workflowservice.v1.ListClosedWorkflowExecutionsResponse;
 import io.temporal.api.workflowservice.v1.ListOpenWorkflowExecutionsRequest;
 import io.temporal.api.workflowservice.v1.ListOpenWorkflowExecutionsResponse;
 import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowStub;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.api.workflow.v1.WorkflowExecutionInfo;
 
@@ -68,12 +74,30 @@ public class HomeController {
     public String getMoneyTransferDetails (@RequestParam(required = false) String workflowID, Model model) {
         System.out.println("money-transfer-details method entry.");
         System.out.println("Request parameter is -" + workflowID);
+        model.addAttribute("appName","Money Transfer");
+        model.addAttribute("selectedWorkflow", workflowID);
+        // Setup a new model state object that is returned if workflow identified is not found.
+        MoneyTransferState moneyTransferState = new MoneyTransferState();
+        MoneyTransferResponse moneyTransferResp = new MoneyTransferResponse();
+        moneyTransferResp.setChargeId("Not yet set");
+        moneyTransferState.setMoneyTransferResponse(moneyTransferResp);
+
+
+        if ((workflowID != null) && (workflowID.length() > 1))
+        {
+               WorkflowStub wfStub = client.newUntypedWorkflowStub(workflowID);
+               moneyTransferState = wfStub.query("transferStatus", MoneyTransferState.class);
+               logger.debug("moneyTransferState Returned: " +moneyTransferState.toString());
+        }
+
+        model.addAttribute("moneyTransferState", moneyTransferState);
+        
         WorkflowServiceStubs wfStubs = client.getWorkflowServiceStubs();
         ListOpenWorkflowExecutionsResponse openResponse =
             wfStubs.blockingStub()
                    .listOpenWorkflowExecutions(
                     ListOpenWorkflowExecutionsRequest.newBuilder()
-                      .setStartTimeFilter(StartTimeFilter.newBuilder().setEarliestTime(TemporalClient.getOneHourAgo()).build())
+                      //.setStartTimeFilter(StartTimeFilter.newBuilder().setEarliestTime(TemporalClient.getOneHourAgo()).build())
                       .setTypeFilter(WorkflowTypeFilter.newBuilder().setName("TransferMoneyWorkflow").build())
                       .setNamespace(client.getOptions().getNamespace())
                       .build()
@@ -99,7 +123,7 @@ public class HomeController {
             aWfStatus.setWorkflowId(wfExecutionInfo.getExecution().getWorkflowId());
             aWfStatus.setWorkflowStatus(wfExecutionInfo.getStatus().toString());
             aWfStatus.setUrl(TemporalClient.getWorkflowUrl(aWfStatus.getWorkflowId(), wfStubs.getOptions().getTarget(), client.getOptions().getNamespace()));
-
+            
         workflowStatii.add(aWfStatus);
         }
         for (WorkflowExecutionInfo wfExecutionInfo : closedResponse.getExecutionsList())  {
@@ -117,7 +141,7 @@ public class HomeController {
             model.addAttribute("workflows",workflowStatii);
         }
         return new String("money-transfer-details");
-    } // End getMoney iTransfer Details
+    } // End getMoneyTransfer Details
 
     @GetMapping("/hello")
     public String getHello() {

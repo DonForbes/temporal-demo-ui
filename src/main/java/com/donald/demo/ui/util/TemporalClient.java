@@ -5,8 +5,6 @@ import java.time.LocalDateTime;
 import java.time.Instant;
 import java.time.ZoneId;
 
-import org.apache.catalina.util.ServerInfo;
-
 public class TemporalClient {
 
     public static Timestamp getOneHourAgo() {
