@@ -31,13 +31,13 @@
                         <table id="wfDetailsTable" class="table table-striped">
                             <tr>
                                 <td>Transfer State</td>
-                                <td><a th:text="${moneyTransferState.transferState}"></a></td>
+                                <td><a style="color:rgb(102, 179,73);" th:text="${moneyTransferState.transferState}"></a></td>
                                 <td>Workflow Status</td>
-                                <td><a id="workflowStatus" th:text="${moneyTransferState.workflowStatus}"></a></td>
+                                <td><a id="workflowStatus" style="color:rgb(102, 179,73);" th:text="${moneyTransferState.workflowStatus}"></a></td>
                             </tr>
                             <tr>
                                 <td>Approval Time</td>
-                                <td><a th:text="${moneyTransferState.approvedTime} ?: 'None'"></a><a hidden="true"
+                                <td><a style="color:rgb(102, 179,73);" th:text="${moneyTransferState.approvedTime} ?: 'None'"></a><a hidden="true"
                                         id="approvalRequired" th:text="${moneyTransferState.approvalRequired}"></a></td>
                                 <td>Approval:</td>
                                 <td><button id="approveBtn" type="button" hidden onclick="approve()">Approve transferState</button>
@@ -45,10 +45,10 @@
                             </tr>
                             <tr>
                                 <td>Charge Identifier</td>
-                                <td><a th:text="${moneyTransferState.moneyTransferResponse.chargeId} ?: 'Not set'"></a>
+                                <td><a style="color:rgb(102, 179,73);" th:text="${moneyTransferState.moneyTransferResponse.chargeId} ?: 'Not set'"></a>
                                 </td>
                                 <td>Withdrawal Identifier</td>
-                                <td><a
+                                <td><a style="color:rgb(102, 179,73);" 
                                         th:text="${moneyTransferState.moneyTransferResponse.withdrawId} ?: 'Not set'"></a>
                                 </td>
                             </tr>
@@ -65,12 +65,16 @@
                 <table id="workflows" class="table">
                     <thead>
                         <th>Workflow</th>
+                        <th></th>
                         <th>Status</th>
+                        <th></th>
                     </thead>
                     <tbody>
                         <tr th:each="workflow : ${workflows}">
                             <td><a th:href="${workflow.url}" th:text="${workflow.workflowId}"></a></td>
+                            <td><a th:href="${workflow.url}"><img src="../static/resources/images/temporal-cloud-logo.png" th:src="@{/resources/images/temporal-cloud-logo.png}" style="width:160px;height:30px;"/></a></td>
                             <td th:text="${workflow.workflowStatus}"></td>
+                            <td><a th:href="@{'/money-transfer-details?workflowID=' + ${workflow.workflowId}}"><img src="../static/resources/images/workflow-details.png" th:src="@{/resources/images/workflow-details.png}" style="width:160px;height:30px;"/></a></td>
                         </tr>
                     </tbody>
 
@@ -118,8 +122,6 @@
         });
 
         function refreshStatus() {
-            console.log(document.getElementById('workflowStatus').firstChild.nodeValue);
-            console.log("[[${moneyTransferState.workflowStatus}]]");
             if ("[[${moneyTransferState.workflowStatus}]]" === "COMPLETED" ||  "[[${moneyTransferState.workflowStatus}]]" == "FAILED") 
                 console.log("Not refreshing screen any longer.  WF selected finished.");
             else
@@ -132,7 +134,7 @@
                     document.getElementById("approveBtn").setAttribute("hidden", true);
 
                 sleep(2000).then(() => {
-                    console.log("Slept for 3, now refreshing screen");
+                    console.log("Slept for 2, now refreshing screen");
                     location.reload();
                 });
             }
@@ -147,7 +149,19 @@
             window.location.href = "/money-transfer-welcome";
         }
         function approve() {
-            alert("TODO - implement alert");
+            url="/approveTransfer";
+            $.ajax({
+                'url': url,
+                'method': 'POST',
+                'dataType': 'json',
+                'contentType': 'application/json',
+                'data': JSON.stringify({
+                    "workflowId": "[[${moneyTransferState.workflowId}]]"
+                }),
+                success: function (response) {
+                    refreshStatus();
+                }
+            });
         }
 
     </script>

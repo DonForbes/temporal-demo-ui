@@ -1,4 +1,4 @@
-package com.donald.demo.ui;
+package com.donald.demo.ui.controllers;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

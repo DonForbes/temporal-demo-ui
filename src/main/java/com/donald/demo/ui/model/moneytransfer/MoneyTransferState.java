@@ -15,5 +15,6 @@ public class MoneyTransferState {
     private String transferState;
     private String workflowStatus;
     private MoneyTransferResponse moneyTransferResponse = new MoneyTransferResponse();
+    private String workflowId;
 
 }
