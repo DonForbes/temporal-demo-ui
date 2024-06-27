@@ -27,6 +27,9 @@ demonstration:
         - name: Transfer Money
           link: money-transfer-welcome
           description: Demonstrate using Temporal to transfer money from one account to another.  Includes approval workflows, error handling, retries etc.
+        - name: Temporal Cloud Namespace Management
+          link: namespace-management
+          description: Allows the user to view namespaces in the cloud and add/rotate certificates.
 
 money-transfer:
     defaultAmount: 10 
@@ -58,3 +61,8 @@ money-transfer:
           optionDescription: Bug in workflow (Recoverable failure)
         - option: INVALID_ACCOUNT
           optionDescription: Invalid account selected (Unrecoverable failure)
+
+cloud-operations-service:
+  host: localhost
+  port: 8091
+  protocol: http

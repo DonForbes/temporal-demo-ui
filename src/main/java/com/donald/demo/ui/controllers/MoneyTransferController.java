@@ -38,7 +38,7 @@ public class MoneyTransferController {
     private MoneyTransferModel toAccounts;
     @Autowired
     WorkflowClient client;
-    private static final Logger logger = LoggerFactory.getLogger(HomeController.class);
+    private static final Logger logger = LoggerFactory.getLogger(MoneyTransferController.class);
 
     @GetMapping("/money-transfer-welcome")
     public String getMoneyTransferWelcome(Model model) {
