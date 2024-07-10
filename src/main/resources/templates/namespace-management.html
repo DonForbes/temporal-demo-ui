@@ -34,7 +34,7 @@
                                   </thead>
                                   <tbody>
                                     <tr th:each="namespace : ${namespaces}">
-                                        <td><a th:href="@{'namespace-management-details?namespace-name=' + ${namespace.name}}" th:text="${namespace.name}"></a></td>
+                                        <td><a th:href="@{'namespace-management-details/' + ${namespace.name} + '/\?apiKey=' + ${apiKey}}" th:text="${namespace.name}"></a></td>
                                         <td th:text="${namespace.state}"></td>
                                         <td th:text="${namespace.activeRegion}"></td>
                                       </tr>
@@ -56,7 +56,7 @@
     <script>
  function editNamespace()
  {
-    window.location.href = "/namespace-management-details?namespace-name=";
+    window.location.href = "/namespace-management-details/new\?apiKey=[[${apiKey}]]";
  }
      </script>
 

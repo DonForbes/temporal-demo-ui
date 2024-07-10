@@ -9,7 +9,26 @@
             style="color:rgb(102, 179,73);">Temporal Demos : </h2>
          <div class="row">
             <div class="col-md-12">
-
+              <table id="NamespaceTable" class="table table-striped">
+                <tr><td><b>Name</b></td>
+                    <td><a th:text="${namespace.name}"></a></td>
+                    <td><b>Active Region</b></td>
+                    <td><a th:text="${namespace.activeRegion}"></a></td>
+                    <td><b>Status</b></td>
+                    <td><a th:text="${namespace.state}"></a></td>
+                    <td><b>Retention Period</b></td>
+                    <td><a th:text="${namespace.retentionPeriod}"> days</a></td>
+                  </tr>
+                  <tr>
+                    <td>Public CA for Certificate Authority</td>
+                  </tr>
+                  <tr><td><a style="width:100%; height:800px;" th:text="${namespace.certAuthorityPublicCert}"></a></td></tr>
+                  <tr><td>Users</td></tr>
+                  <th><td>e-mail</td><td>Role</td></th>
+                  <tr th:each="user : ${namespace.cloudOpsUsers}">
+                    <td><a th:text="${user.eMail}"></a></td>
+                    <td th:text="${user.role}"></td>
+                  </tr>
               </table>
             </div>
          </div>  

@@ -1,4 +1,4 @@
-package com.donald.demo.ui.model.namespace;
+package com.donald.demo.ui.model.operations;
 
 import lombok.Data;
 

@@ -1,4 +1,4 @@
-package com.donald.demo.ui.model.namespace;
+package com.donald.demo.ui.model.operations;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
