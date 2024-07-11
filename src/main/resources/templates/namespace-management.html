@@ -8,19 +8,24 @@
             <div class="card-body">
                 <h2 class="card-title" th:text="'Temporal Demonstrations : ' + ${title}"
                     style="color:rgb(102, 179,73);">Temporal Demos : </h2>
-                <h6>This page shows all the namespaces that the user is allowed to access.  Follow the namespace link to edit that specific namespace or click on the new Namespace button to create a new namespace.</h6>
+                <h6>This page shows all the namespaces that the user is allowed to access. Follow the namespace link to
+                    edit that specific namespace or click on the new Namespace button to create a new namespace.</h6>
                 <div class="form-group">
                     <br />
                     <table id="UserSelectionTable" class="table">
                         <tbody>
-                        <tr>
-                            <td><form action="namespace-management" id="namespaceMgmtform" method="get">
-                                <p>Please provide an API key to access cloud: <input id="apiKey" type="password" name="apiKey" th:value="*{apiKey}"/>
-                                <input type="submit" value="Get Namespaces" class="btn btn-primary"/></p>
-                                </form>
-                             </td>
-                             <td><input type="submit" value="Create Namespaces" class="btn btn-secondary" onclick="editNamespace()"/></td>
-                        </tr>
+                            <tr>
+                                <td>
+                                    <form action="namespace-management" id="namespaceMgmtform" method="get">
+                                        <p>Please provide an API key to access cloud: <input id="apiKey" type="password"
+                                                name="apiKey" th:value="*{apiKey}" />
+                                            <input type="submit" value="Get Namespaces" class="btn btn-primary" />
+                                        </p>
+                                    </form>
+                                </td>
+                                <td><input type="submit" value="Create Namespaces" class="btn btn-secondary"
+                                        onclick="editNamespace()" /></td>
+                            </tr>
                         </tbody>
                     </table>
 
@@ -31,14 +36,15 @@
                                     <th>Namespace</th>
                                     <th>State</th>
                                     <th>Active Region</th>
-                                  </thead>
-                                  <tbody>
+                                </thead>
+                                <tbody>
                                     <tr th:each="namespace : ${namespaces}">
-                                        <td><a th:href="@{'namespace-management-details/' + ${namespace.name} + '/\?apiKey=' + ${apiKey}}" th:text="${namespace.name}"></a></td>
+                                        <td><a th:href="@{'namespace-management/' + ${namespace.name} + '?isNewNamespace=false&apiKey=' + ${apiKey}}"
+                                                th:text="${namespace.name}"></a></td>
                                         <td th:text="${namespace.state}"></td>
                                         <td th:text="${namespace.activeRegion}"></td>
-                                      </tr>
-                                  </tbody>
+                                    </tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -47,18 +53,29 @@
             <div style="width: 100%;">
                 <div>
                     <h5 class="card-title">Status:</h5>
-                    <p><div id="result"><a style="color:red;" th:text="${status}" ></a></div></p>
+                    <p>
+                    <div id="result"><a style="color:red;" th:text="${status}"></a></div>
+                    </p>
                     <br>
                 </div>
             </div>
         </div>
     </div>
     <script>
- function editNamespace()
- {
-    window.location.href = "/namespace-management-details/new\?apiKey=[[${apiKey}]]";
- }
-     </script>
+        function editNamespace() {
+
+            let apiKey = document.getElementById("apiKey").value;
+            if (!apiKey) {
+                window.alert("Please enter a valid apiKey to access the cloud operations interface");
+                return;
+            }
+            let newNamespace = window.prompt("Please provide a name for the new namespace.", "New Namespace");
+            console.log("Namespace to create is called " + newNamespace);
+
+
+            window.location.href = "/namespace-management/" + newNamespace + "?isNewNamespace=true&apiKey=" + apiKey;
+        }
+    </script>
 
 </body>
 

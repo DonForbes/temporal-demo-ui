@@ -26,19 +26,29 @@ import org.springframework.web.client.RestClient;
 
 import com.donald.demo.ui.model.operations.CloudOpsConfig;
 import com.donald.demo.ui.model.operations.CloudOpsServerConfig;
+import com.donald.demo.ui.model.operations.WorkflowMetadata;
+
+import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowOptions;
+import io.temporal.client.WorkflowStub;
+
 import com.donald.demo.ui.model.operations.CloudOperationsNamespace;
 
 @Controller
 public class NamespaceController {
   @Autowired
   CloudOpsServerConfig cloudOpsServerConfig;
+  @Autowired
+  WorkflowClient client;
   private static final Logger logger = LoggerFactory.getLogger(NamespaceController.class);
   private RestClient restClient = RestClient.create();
+  private static String MANAGE_WORKFLOW_PREFIX = "manage-namespace-";
+  private static String MANAGE_WORKFLOW_TASK_QUEUE = "ManageNamespaceWFTaskQueue";
 
   @GetMapping("/namespace-management-details/{namepaceName}")
-  public String getNamespaceDetails(@RequestParam(required = false, value = "apiKey") String apiKey, 
-                                    @PathVariable(required = false, value = "namespaceName") String namespaceName,
-                                    Model model) {
+  public String getNamespaceDetails(@RequestParam(required = false, value = "apiKey") String apiKey,
+      @PathVariable(required = false, value = "namespaceName") String namespaceName,
+      Model model) {
     model.addAttribute("title", "Namespace Management");
     logger.debug("getNamespaceDetails method entry - namepace[{}]", namespaceName);
 
@@ -50,9 +60,52 @@ public class NamespaceController {
     cloudOpsNS.setCertAuthorityPublicCert("BLa BLa");
 
     model.addAttribute("namespace", cloudOpsNS);
-    
+
     return new String("namespace-management-details");
   }
+
+  @GetMapping("/namespace-management/{namespaceName}")
+  public String getNamespace(
+      @RequestParam(required = false, value = "apiKey") String apiKey,
+      @RequestParam(required = false, value = "isNewNamespace") Boolean isNewNamespace,
+      @PathVariable(required = false, value = "namespaceName") String namespaceName,
+      Model model) {
+    model.addAttribute("title", "Namespace Management");
+    logger.debug("getNamespaceDetails method entry - namepace[{}]", namespaceName);
+
+    // Setup variables and parameters used to start the workflow.
+    WorkflowMetadata wfMetadata = new WorkflowMetadata();
+    wfMetadata.setApiKey(apiKey);
+    wfMetadata.setIsNewNamespace(isNewNamespace);
+    CloudOperationsNamespace cloudOpsNS = new CloudOperationsNamespace();
+    cloudOpsNS.setName(namespaceName);
+
+    String workflowId = this.MANAGE_WORKFLOW_PREFIX + cloudOpsNS.getName();
+
+    /**
+     * Start a workflow to manage the state for the UI.
+     */
+    WorkflowStub untypedWFStub = client.newUntypedWorkflowStub("ManageNamespace",
+        WorkflowOptions.newBuilder()
+            .setWorkflowId(workflowId)
+            .setTaskQueue(this.MANAGE_WORKFLOW_TASK_QUEUE)
+            .build());
+
+    // blocks until Workflow Execution has been started (not until it completes)
+    try {
+    untypedWFStub.start(wfMetadata, cloudOpsNS);
+    }
+    catch (io.temporal.client.WorkflowException e)
+    {
+      logger.debug("Cause of error is [{}]", e.getCause().getMessage());
+      model.addAttribute("status", e.getCause().getMessage());
+    }
+
+    model.addAttribute("namespace", cloudOpsNS);
+    model.addAttribute("workflowId", workflowId);
+
+    return new String("/namespace-management-details");
+  } // End getNamespace (With namespace to manage)
 
   @GetMapping("namespace-management")
   public String getNamespaces(@RequestParam(required = false) String apiKey, Model model) {
@@ -60,7 +113,7 @@ public class NamespaceController {
 
     logger.debug("getNamespaces method entry");
     if (apiKey == null) // If no API key parameter then simply show page.
-      return "namespace-management";  
+      return "namespace-management";
 
     if ((apiKey != null) && (apiKey.length() != 0)) {
       logger.debug("ApiKey to use is [{}] ", apiKey);
@@ -77,12 +130,14 @@ public class NamespaceController {
             .uri(cloudOpsServerConfig.getBaseURI() + "/namespaces?apiKey=" + apiKey)
             .accept(MediaType.APPLICATION_JSON)
             .retrieve()
-            .onStatus( HttpStatusCode::is4xxClientError, (request,response) -> {
-              logger.info("Got an error back from operations.  Status[{}], Headers [{}]", response.getStatusCode().toString(), response.getHeaders().toString() );
+            .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
+              logger.info("Got an error back from operations.  Status[{}], Headers [{}]",
+                  response.getStatusCode().toString(), response.getHeaders().toString());
               model.addAttribute("status", response.getStatusCode() + "-" + response.getHeaders().get("opsresponse"));
             })
-            .onStatus( HttpStatusCode::is5xxServerError, (request,response) -> {
-              logger.info("Got an error back from operations.  Status[{}], Headers [{}]", response.getStatusCode().toString(), response.getHeaders().toString() );
+            .onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+              logger.info("Got an error back from operations.  Status[{}], Headers [{}]",
+                  response.getStatusCode().toString(), response.getHeaders().toString());
               model.addAttribute("status", response.getStatusCode() + "-" + response.getHeaders().toString());
             })
             .body(List.class);
@@ -91,16 +146,13 @@ public class NamespaceController {
 
       } catch (HttpServerErrorException e) {
         logger.info("Error from the server [{}]", e.getMessage());
-      } 
-      catch (HttpClientErrorException e) {
+      } catch (HttpClientErrorException e) {
         logger.info("Error from cloud ops service [{}]", e.getMessage());
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         logger.info("Exception from cloud ops service [{}]", e.getMessage());
       }
 
-    }
-    else
+    } else
       model.addAttribute("status", "Please enter a valid API key to access Temporal Operations");
 
     return "namespace-management";

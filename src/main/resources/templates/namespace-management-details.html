@@ -6,7 +6,7 @@
       <div class="card">
         <div class="card-body">
             <h2 class="card-title" th:text="'Temporal Demonstrations : ' + ${title}"
-            style="color:rgb(102, 179,73);">Temporal Demos : </h2>
+            style="color:rgb(102, 179,73);">Temporal Demos</h2>
          <div class="row">
             <div class="col-md-12">
               <table id="NamespaceTable" class="table table-striped">
@@ -20,16 +20,19 @@
                     <td><a th:text="${namespace.retentionPeriod}"> days</a></td>
                   </tr>
                   <tr>
-                    <td>Public CA for Certificate Authority</td>
+                    <td><b>Public CA for Certificate Authority:</b></td>
                   </tr>
                   <tr><td><a style="width:100%; height:800px;" th:text="${namespace.certAuthorityPublicCert}"></a></td></tr>
-                  <tr><td>Users</td></tr>
+                  <tr><td><b>Users</b></td></tr>
                   <th><td>e-mail</td><td>Role</td></th>
                   <tr th:each="user : ${namespace.cloudOpsUsers}">
                     <td><a th:text="${user.eMail}"></a></td>
                     <td th:text="${user.role}"></td>
                   </tr>
               </table>
+              <br>
+              <br>
+              <a>Status:</a><br><a th:text="${status}"></a>
             </div>
          </div>  
        </div>
