@@ -9,12 +9,12 @@ import lombok.Data;
 @Configuration
 @ConfigurationProperties("cloud-operations-service")
 public class CloudOpsServerConfig {
-    private String host;
-    private int port;
-    private String protocol;
+    private  String host;
+    private  int port;
+    private  String protocol;
 
 
-    public String getBaseURI() {
+    public  String getBaseURI() {
         return protocol + "://" + host + ":" + port;
     }
 }

@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,6 +32,8 @@ import com.donald.demo.ui.model.operations.WorkflowMetadata;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
+import io.temporal.workflow.ExternalWorkflowStub;
+import io.temporal.workflow.Workflow;
 
 import com.donald.demo.ui.model.operations.CloudOperationsNamespace;
 
@@ -43,25 +46,57 @@ public class NamespaceController {
   private static final Logger logger = LoggerFactory.getLogger(NamespaceController.class);
   private RestClient restClient = RestClient.create();
   private static String MANAGE_WORKFLOW_PREFIX = "manage-namespace-";
-  private static String MANAGE_WORKFLOW_TASK_QUEUE = "ManageNamespaceWFTaskQueue";
+  private static String MANAGE_WORKFLOW_TASK_QUEUE = "ManageNamespaceTaskQueue";
 
-  @GetMapping("/namespace-management-details/{namepaceName}")
+  /** 
+  @GetMapping("/namespace-management-detailsNOTUSED/{namepaceName}")
   public String getNamespaceDetails(@RequestParam(required = false, value = "apiKey") String apiKey,
-      @PathVariable(required = false, value = "namespaceName") String namespaceName,
+      @PathVariable(required = true, value = "namespaceName") String namespaceName,
       Model model) {
-    model.addAttribute("title", "Namespace Management");
-    logger.debug("getNamespaceDetails method entry - namepace[{}]", namespaceName);
+        logger.debug("Method Entry - getNamespaceDetails.");
 
-    CloudOperationsNamespace cloudOpsNS = new CloudOperationsNamespace();
-    cloudOpsNS.setName("Hello");
-    cloudOpsNS.setState("Active");
-    cloudOpsNS.setRetentionPeriod(10);
-    cloudOpsNS.setActiveRegion("Active-region");
-    cloudOpsNS.setCertAuthorityPublicCert("BLa BLa");
+    String workflowId = this.MANAGE_WORKFLOW_PREFIX + namespaceName;
+
+    WorkflowStub untypedWFStub = client.newUntypedWorkflowStub("ManageNamespace",
+        WorkflowOptions.newBuilder()
+            .setWorkflowId(workflowId)
+            .setTaskQueue(this.MANAGE_WORKFLOW_TASK_QUEUE)
+            .build());
+
+    CloudOperationsNamespace cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
+    if (cloudOpsNS == null)
+      logger.debug("For some reason our query returned the namespace as null.");
+    else
+      logger.debug("The namespace returned from the workflow is [{}]", cloudOpsNS.toString());
 
     model.addAttribute("namespace", cloudOpsNS);
 
-    return new String("namespace-management-details");
+    return new String("/namespace-management-details" + namespaceName);
+  }
+
+  **/
+
+  @PostMapping("/namespace-management-details")
+  public String namespaceUpdate(@ModelAttribute(value = "namespace") CloudOperationsNamespace cloudOpsNamespace,
+      Model model) {
+    logger.debug("method Entry: namespaceUpdate");
+    logger.debug(cloudOpsNamespace.toString());
+    model.addAttribute("title", "Namespace Management");
+   
+    WorkflowStub wfStub = client.newUntypedWorkflowStub(this.MANAGE_WORKFLOW_PREFIX + cloudOpsNamespace.getName());
+    wfStub.signal("setNamespace", cloudOpsNamespace);
+
+    // Having signalled the workflow now get the latest version of the namespace from the workflow to display again.  (Cos display fields are not included in the form data.)        
+    cloudOpsNamespace = wfStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
+    model.addAttribute("namespace", cloudOpsNamespace);
+    model.addAttribute("page", 2);
+
+    // TODO - Need to incorporate a field to show the page that is to be displayed next on screen.  
+    // (Think add to the model/form(hidden) and use javascript to change value on each reload/track the page we are on.)
+    FAIL_THE_COMPILER_HERE
+
+
+    return "namespace-management-details";
   }
 
   @GetMapping("/namespace-management/{namespaceName}")
@@ -71,7 +106,7 @@ public class NamespaceController {
       @PathVariable(required = false, value = "namespaceName") String namespaceName,
       Model model) {
     model.addAttribute("title", "Namespace Management");
-    logger.debug("getNamespaceDetails method entry - namepace[{}]", namespaceName);
+    logger.debug("getNamespace method entry - namepace[{}]", namespaceName);
 
     // Setup variables and parameters used to start the workflow.
     WorkflowMetadata wfMetadata = new WorkflowMetadata();
@@ -93,16 +128,46 @@ public class NamespaceController {
 
     // blocks until Workflow Execution has been started (not until it completes)
     try {
-    untypedWFStub.start(wfMetadata, cloudOpsNS);
-    }
-    catch (io.temporal.client.WorkflowException e)
-    {
+      untypedWFStub.start(wfMetadata, cloudOpsNS);
+
+      boolean awaitPopulationOfNamespaceDetails = true;
+      int counter = 0;
+      while (awaitPopulationOfNamespaceDetails) {
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException e) {
+          // TODO Auto-generated catch block
+          e.printStackTrace();
+        }
+        counter++;
+        WorkflowMetadata wfStatus = untypedWFStub.query("getWFMetadata", WorkflowMetadata.class);
+        if (wfStatus == null) {
+          logger.debug(
+              "The query on the worflow metadata returned null.  Retrying in the hope that the workflow is still initialising itself.");
+          if (counter > 100)
+            break;
+        } else if ((wfStatus.getNsDataGathered() != null) && (wfStatus.getNsDataGathered())) {
+          logger.debug("Got the initial information on the namespace to show user.");
+          awaitPopulationOfNamespaceDetails = false;
+        }
+      }
+      cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
+      if (cloudOpsNS == null)
+        logger.debug("For some reason our query returned the namespace as null.");
+      else
+        logger.debug("The namespace returned from the workflow is [{}]", cloudOpsNS.toString());
+
+    } catch (io.temporal.client.WorkflowException e) {
       logger.debug("Cause of error is [{}]", e.getCause().getMessage());
       model.addAttribute("status", e.getCause().getMessage());
+      if (e.getCause().getMessage().contains("ALREADY_EXISTS")) {
+        cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
+      }
     }
 
     model.addAttribute("namespace", cloudOpsNS);
     model.addAttribute("workflowId", workflowId);
+    model.addAttribute("page", 1);
 
     return new String("/namespace-management-details");
   } // End getNamespace (With namespace to manage)
