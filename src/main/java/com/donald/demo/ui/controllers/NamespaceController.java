@@ -36,6 +36,7 @@ import io.temporal.workflow.ExternalWorkflowStub;
 import io.temporal.workflow.Workflow;
 
 import com.donald.demo.ui.model.operations.CloudOperationsNamespace;
+import com.donald.demo.ui.model.operations.CloudOperationsRegions;
 
 @Controller
 public class NamespaceController {
@@ -43,38 +44,28 @@ public class NamespaceController {
   CloudOpsServerConfig cloudOpsServerConfig;
   @Autowired
   WorkflowClient client;
+  @Autowired
+  CloudOperationsRegions cloudOpsRegions;
   private static final Logger logger = LoggerFactory.getLogger(NamespaceController.class);
   private RestClient restClient = RestClient.create();
   private static String MANAGE_WORKFLOW_PREFIX = "manage-namespace-";
   private static String MANAGE_WORKFLOW_TASK_QUEUE = "ManageNamespaceTaskQueue";
 
-  /** 
-  @GetMapping("/namespace-management-detailsNOTUSED/{namepaceName}")
-  public String getNamespaceDetails(@RequestParam(required = false, value = "apiKey") String apiKey,
-      @PathVariable(required = true, value = "namespaceName") String namespaceName,
-      Model model) {
-        logger.debug("Method Entry - getNamespaceDetails.");
 
-    String workflowId = this.MANAGE_WORKFLOW_PREFIX + namespaceName;
 
-    WorkflowStub untypedWFStub = client.newUntypedWorkflowStub("ManageNamespace",
-        WorkflowOptions.newBuilder()
-            .setWorkflowId(workflowId)
-            .setTaskQueue(this.MANAGE_WORKFLOW_TASK_QUEUE)
-            .build());
+  @PostMapping("/namespace-update")
+  public ResponseEntity<String> namespaceCreateOrUpdate(@RequestBody CloudOperationsNamespace cloudOpsNamespace, Model model){
+      // Method will signal the workflow with the latest version of the namespace and then signal it to continue processing to complete or update the
+      // workflow.
+      logger.debug("Namespace to be updated/created is [{}]", cloudOpsNamespace.toString());
+      WorkflowStub wfStub = client.newUntypedWorkflowStub(this.MANAGE_WORKFLOW_PREFIX + cloudOpsNamespace.getName());
+      //WorkflowMetadata wfStatus = wfStub.query("getWFMetadata",WorkflowMetadata.class);
+      //model.addAttribute("apiKey", wfStatus.getApiKey());
+      wfStub.signal("createOrUpdateNamespace", cloudOpsNamespace);
+    return new ResponseEntity<>("\"" + "Namespace Update Completed" + "\"", HttpStatus.CREATED);
+  } // End namespaceCreateOrUpdate
 
-    CloudOperationsNamespace cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
-    if (cloudOpsNS == null)
-      logger.debug("For some reason our query returned the namespace as null.");
-    else
-      logger.debug("The namespace returned from the workflow is [{}]", cloudOpsNS.toString());
 
-    model.addAttribute("namespace", cloudOpsNS);
-
-    return new String("/namespace-management-details" + namespaceName);
-  }
-
-  **/
 
   @PostMapping("/namespace-management-details")
   public String namespaceUpdate(@ModelAttribute(value = "namespace") CloudOperationsNamespace cloudOpsNamespace,
@@ -82,19 +73,29 @@ public class NamespaceController {
     logger.debug("method Entry: namespaceUpdate");
     logger.debug(cloudOpsNamespace.toString());
     model.addAttribute("title", "Namespace Management");
-   
+    model.addAttribute("regions", cloudOpsRegions.getRegions());
+    logger.debug("Clous operations regions [{}]", cloudOpsRegions.toString());
+
     WorkflowStub wfStub = client.newUntypedWorkflowStub(this.MANAGE_WORKFLOW_PREFIX + cloudOpsNamespace.getName());
     wfStub.signal("setNamespace", cloudOpsNamespace);
 
     // Having signalled the workflow now get the latest version of the namespace from the workflow to display again.  (Cos display fields are not included in the form data.)        
     cloudOpsNamespace = wfStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
+    WorkflowMetadata wfMetadata = wfStub.query("getWFMetadata",WorkflowMetadata.class );
+    if (wfMetadata.getPageDisplay() == 1)
+        {
+          // Toggle to show page 2.
+          wfMetadata.setPageDisplay(2);
+        }
+    else
+        {
+          // Toggle to show page 1
+          wfMetadata.setPageDisplay(1);
+        }
+    wfStub.signal("setPageDisplay", wfMetadata);
     model.addAttribute("namespace", cloudOpsNamespace);
-    model.addAttribute("page", 2);
-
-    // TODO - Need to incorporate a field to show the page that is to be displayed next on screen.  
-    // (Think add to the model/form(hidden) and use javascript to change value on each reload/track the page we are on.)
-    FAIL_THE_COMPILER_HERE
-
+    model.addAttribute("page", wfMetadata.getPageDisplay());
+    model.addAttribute("metadata", wfMetadata);
 
     return "namespace-management-details";
   }
@@ -127,6 +128,7 @@ public class NamespaceController {
             .build());
 
     // blocks until Workflow Execution has been started (not until it completes)
+    WorkflowMetadata wfStatus = new WorkflowMetadata();
     try {
       untypedWFStub.start(wfMetadata, cloudOpsNS);
 
@@ -140,7 +142,7 @@ public class NamespaceController {
           e.printStackTrace();
         }
         counter++;
-        WorkflowMetadata wfStatus = untypedWFStub.query("getWFMetadata", WorkflowMetadata.class);
+        wfStatus = untypedWFStub.query("getWFMetadata", WorkflowMetadata.class);
         if (wfStatus == null) {
           logger.debug(
               "The query on the worflow metadata returned null.  Retrying in the hope that the workflow is still initialising itself.");
@@ -168,9 +170,15 @@ public class NamespaceController {
     model.addAttribute("namespace", cloudOpsNS);
     model.addAttribute("workflowId", workflowId);
     model.addAttribute("page", 1);
+    model.addAttribute("regions", cloudOpsRegions.getRegions());
+    model.addAttribute("metadata", wfStatus);
+
 
     return new String("/namespace-management-details");
   } // End getNamespace (With namespace to manage)
+
+
+
 
   @GetMapping("namespace-management")
   public String getNamespaces(@RequestParam(required = false) String apiKey, Model model) {

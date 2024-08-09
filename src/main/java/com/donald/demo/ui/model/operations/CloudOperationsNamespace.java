@@ -13,7 +13,8 @@ public class CloudOperationsNamespace {
     private Collection<CloudOperationsCertAuthority> certAuthorityPublicCerts = new ArrayList<>();
     private String certAuthorityPublicCertificates;
     private Collection<CloudOperationsUser> cloudOpsUsers;
-    private int formPage;
+    private String codexEndPoint;
+//    private int formPage;
 
     public String getCertAuthorityPublicCertificates() {
         StringBuilder returnCerts = new StringBuilder();
