@@ -15,7 +15,9 @@
                 <tbody>
                   <tr>
                     <td colspan="4" text-align="left"><input id="submitBtn" type="submit" value="Next" /></td>
-                    <td colspan="4" text-align="right"><button id="createOrEditBtn" class="page2" type="button" style="float: right;" onclick="createOrUpdateNS();">Create</button></td></tr>
+                    <td colspan="4" text-align="right"><button id="createOrEditBtn" class="page2" type="button"
+                        style="float: right;" onclick="createOrUpdateNS();">Create</button></td>
+                  </tr>
                   <tr>
                     <td><b>Name</b></td>
                     <td><input type="text" th:field="*{name}" readonly /></td>
@@ -38,11 +40,12 @@
         </div>
         <div class="row">
           <div class="col-md-12">
-            <table id="codexDetails" class="table table-striped page2">
+            <table id="codecDetails" class="table table-striped page2">
               <tbody>
                 <tr>
                   <td style="width: 300px"><b>Codec Server Endpoint</b></td>
-                  <td style="width: 100%;"><input id="codexField" style="width: 100%;" type="text" th:field="${namespace.codexEndPoint}" /></td>
+                  <td style="width: 100%;"><input id="codecField" style="width: 100%;" type="text"
+                      th:field="${namespace.codecEndPoint}" /></td>
                 </tr>
               </tbody>
             </table>
@@ -106,7 +109,8 @@
         </form>
         <br>
         <br>
-        <a>Status:</a><br><a th:text="${status}"></a><div id="result"></div>
+        <a>Status:</a><br><a th:text="${status}"></a>
+        <div id="result"></div>
       </div>
     </div>
   </div>
@@ -157,27 +161,28 @@
 
     function createOrUpdateNS() {
       // Function will signal the workflow to update to latest updates on screen and call operations to save the changes.
-      var namespace = [[${namespace}]];
+      var namespace = [[${ namespace }]];
       var url = "namespace-update";
       console.log("Namespace name - " + namespace);
-     
 
-    $.ajax({
+
+      $.ajax({
         'url': url,
-        'method':'POST',
+        'method': 'POST',
         'dataType': 'json',
         'contentType': 'application/json',
-        'data': JSON.stringify({ "name": [[${namespace.name}]],
-                                 "codexEndPoint": document.getElementById("codexField").value,
-                                 "retentionPeriod": [[${namespace.retentionPeriod}]],
-                                 "activeRegion": [[${namespace.activeRegion}]]
-                                
+        'data': JSON.stringify({
+          "name": [[${ namespace.name }]],
+          "codecEndPoint": document.getElementById("codecField").value,
+          "retentionPeriod": [[${ namespace.retentionPeriod }]],
+          "activeRegion": [[${ namespace.activeRegion }]]
+
         }),
-        success: function(response) {
-            $( "#result" ).empty().append( response );
-            location.replace("namespace-management?apiKey=" + [[${metadata.apiKey}]]);
+        success: function (response) {
+          $("#result").empty().append(response);
+          location.replace("namespace-management?apiKey=" + [[${ metadata.apiKey }]]);
         }
-    });
+      });
     }
   </script>
 </body>

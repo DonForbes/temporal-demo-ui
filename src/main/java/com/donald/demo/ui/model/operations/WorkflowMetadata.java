@@ -7,6 +7,7 @@ public class WorkflowMetadata {
     private String apiKey;
     private Boolean isNewNamespace;
     private Boolean nsDataGathered;
+    private Boolean approved;
     private int manageNamespaceTimeoutMins=11;
     private int pageDisplay=1;
 }

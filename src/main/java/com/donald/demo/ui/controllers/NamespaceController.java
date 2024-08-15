@@ -15,12 +15,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
@@ -48,24 +50,26 @@ public class NamespaceController {
   CloudOperationsRegions cloudOpsRegions;
   private static final Logger logger = LoggerFactory.getLogger(NamespaceController.class);
   private RestClient restClient = RestClient.create();
-  private static String MANAGE_WORKFLOW_PREFIX = "manage-namespace-";
-  private static String MANAGE_WORKFLOW_TASK_QUEUE = "ManageNamespaceTaskQueue";
-
-
+  private static final String MANAGE_WORKFLOW_PREFIX = "manage-namespace-";
+  private static final String WORKFLOW_TYPE_MANAGE_NAMESPACE = "ManageNamespace";
+  private static final String DELETE_WORKFLOW_PREFIX = "delete-namespace-";
+  private static final String WORKFLOW_TYPE_DELETE_NAMESPACE = "DeleteNamespace";
+  private static final String MANAGE_WORKFLOW_TASK_QUEUE = "ManageNamespaceTaskQueue";
 
   @PostMapping("/namespace-update")
-  public ResponseEntity<String> namespaceCreateOrUpdate(@RequestBody CloudOperationsNamespace cloudOpsNamespace, Model model){
-      // Method will signal the workflow with the latest version of the namespace and then signal it to continue processing to complete or update the
-      // workflow.
-      logger.debug("Namespace to be updated/created is [{}]", cloudOpsNamespace.toString());
-      WorkflowStub wfStub = client.newUntypedWorkflowStub(this.MANAGE_WORKFLOW_PREFIX + cloudOpsNamespace.getName());
-      //WorkflowMetadata wfStatus = wfStub.query("getWFMetadata",WorkflowMetadata.class);
-      //model.addAttribute("apiKey", wfStatus.getApiKey());
-      wfStub.signal("createOrUpdateNamespace", cloudOpsNamespace);
+  public ResponseEntity<String> namespaceCreateOrUpdate(@RequestBody CloudOperationsNamespace cloudOpsNamespace,
+      Model model) {
+    // Method will signal the workflow with the latest version of the namespace and
+    // then signal it to continue processing to complete or update the
+    // workflow.
+    logger.debug("Namespace to be updated/created is [{}]", cloudOpsNamespace.toString());
+    WorkflowStub wfStub = client.newUntypedWorkflowStub(this.MANAGE_WORKFLOW_PREFIX + cloudOpsNamespace.getName());
+    // WorkflowMetadata wfStatus =
+    // wfStub.query("getWFMetadata",WorkflowMetadata.class);
+    // model.addAttribute("apiKey", wfStatus.getApiKey());
+    wfStub.signal("createOrUpdateNamespace", cloudOpsNamespace);
     return new ResponseEntity<>("\"" + "Namespace Update Completed" + "\"", HttpStatus.CREATED);
   } // End namespaceCreateOrUpdate
-
-
 
   @PostMapping("/namespace-management-details")
   public String namespaceUpdate(@ModelAttribute(value = "namespace") CloudOperationsNamespace cloudOpsNamespace,
@@ -74,24 +78,23 @@ public class NamespaceController {
     logger.debug(cloudOpsNamespace.toString());
     model.addAttribute("title", "Namespace Management");
     model.addAttribute("regions", cloudOpsRegions.getRegions());
-    logger.debug("Clous operations regions [{}]", cloudOpsRegions.toString());
+    logger.debug("Cloud operations regions [{}]", cloudOpsRegions.toString());
 
     WorkflowStub wfStub = client.newUntypedWorkflowStub(this.MANAGE_WORKFLOW_PREFIX + cloudOpsNamespace.getName());
     wfStub.signal("setNamespace", cloudOpsNamespace);
 
-    // Having signalled the workflow now get the latest version of the namespace from the workflow to display again.  (Cos display fields are not included in the form data.)        
+    // Having signalled the workflow now get the latest version of the namespace
+    // from the workflow to display again. (Cos display fields are not included in
+    // the form data.)
     cloudOpsNamespace = wfStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
-    WorkflowMetadata wfMetadata = wfStub.query("getWFMetadata",WorkflowMetadata.class );
-    if (wfMetadata.getPageDisplay() == 1)
-        {
-          // Toggle to show page 2.
-          wfMetadata.setPageDisplay(2);
-        }
-    else
-        {
-          // Toggle to show page 1
-          wfMetadata.setPageDisplay(1);
-        }
+    WorkflowMetadata wfMetadata = wfStub.query("getWFMetadata", WorkflowMetadata.class);
+    if (wfMetadata.getPageDisplay() == 1) {
+      // Toggle to show page 2.
+      wfMetadata.setPageDisplay(2);
+    } else {
+      // Toggle to show page 1
+      wfMetadata.setPageDisplay(1);
+    }
     wfStub.signal("setPageDisplay", wfMetadata);
     model.addAttribute("namespace", cloudOpsNamespace);
     model.addAttribute("page", wfMetadata.getPageDisplay());
@@ -116,69 +119,109 @@ public class NamespaceController {
     CloudOperationsNamespace cloudOpsNS = new CloudOperationsNamespace();
     cloudOpsNS.setName(namespaceName);
 
-    String workflowId = this.MANAGE_WORKFLOW_PREFIX + cloudOpsNS.getName();
-
-    /**
-     * Start a workflow to manage the state for the UI.
-     */
-    WorkflowStub untypedWFStub = client.newUntypedWorkflowStub("ManageNamespace",
-        WorkflowOptions.newBuilder()
-            .setWorkflowId(workflowId)
-            .setTaskQueue(this.MANAGE_WORKFLOW_TASK_QUEUE)
-            .build());
-
-    // blocks until Workflow Execution has been started (not until it completes)
-    WorkflowMetadata wfStatus = new WorkflowMetadata();
     try {
-      untypedWFStub.start(wfMetadata, cloudOpsNS);
-
-      boolean awaitPopulationOfNamespaceDetails = true;
-      int counter = 0;
-      while (awaitPopulationOfNamespaceDetails) {
-        try {
-          Thread.sleep(1000);
-        } catch (InterruptedException e) {
-          // TODO Auto-generated catch block
-          e.printStackTrace();
-        }
-        counter++;
-        wfStatus = untypedWFStub.query("getWFMetadata", WorkflowMetadata.class);
-        if (wfStatus == null) {
-          logger.debug(
-              "The query on the worflow metadata returned null.  Retrying in the hope that the workflow is still initialising itself.");
-          if (counter > 100)
-            break;
-        } else if ((wfStatus.getNsDataGathered() != null) && (wfStatus.getNsDataGathered())) {
-          logger.debug("Got the initial information on the namespace to show user.");
-          awaitPopulationOfNamespaceDetails = false;
-        }
-      }
-      cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
-      if (cloudOpsNS == null)
-        logger.debug("For some reason our query returned the namespace as null.");
-      else
-        logger.debug("The namespace returned from the workflow is [{}]", cloudOpsNS.toString());
+      startWorkflow(NamespaceController.WORKFLOW_TYPE_MANAGE_NAMESPACE, cloudOpsNS, wfMetadata);
 
     } catch (io.temporal.client.WorkflowException e) {
       logger.debug("Cause of error is [{}]", e.getCause().getMessage());
       model.addAttribute("status", e.getCause().getMessage());
       if (e.getCause().getMessage().contains("ALREADY_EXISTS")) {
+        WorkflowStub untypedWFStub = client.newUntypedWorkflowStub(
+            this.getWorkflowID(NamespaceController.WORKFLOW_TYPE_MANAGE_NAMESPACE, namespaceName));
+        logger.debug("Workflow Stub [{}]", untypedWFStub.getOptions().toString());
         cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
       }
     }
 
+    WorkflowStub untypedWFStub = client
+        .newUntypedWorkflowStub(this.getWorkflowID(NamespaceController.WORKFLOW_TYPE_MANAGE_NAMESPACE, namespaceName));
+    cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
+
     model.addAttribute("namespace", cloudOpsNS);
-    model.addAttribute("workflowId", workflowId);
+    model.addAttribute("workflowId", NamespaceController.WORKFLOW_TYPE_MANAGE_NAMESPACE + cloudOpsNS.getName());
     model.addAttribute("page", 1);
     model.addAttribute("regions", cloudOpsRegions.getRegions());
-    model.addAttribute("metadata", wfStatus);
-
+    model.addAttribute("metadata", untypedWFStub.query("getWFMetadata", WorkflowMetadata.class));
 
     return new String("/namespace-management-details");
   } // End getNamespace (With namespace to manage)
 
+  private String getWorkflowID(String workflowType, String pNamespaceName) {
+    String workflowIDPrefix;
+    logger.debug("workflowType is [{}]", workflowType);
+    switch (workflowType) {
+      case NamespaceController.WORKFLOW_TYPE_MANAGE_NAMESPACE:
+        workflowIDPrefix = NamespaceController.MANAGE_WORKFLOW_PREFIX;
+        break;
+      case NamespaceController.WORKFLOW_TYPE_DELETE_NAMESPACE:
+        workflowIDPrefix = NamespaceController.DELETE_WORKFLOW_PREFIX;
+        break;
+      default:
+        workflowIDPrefix = "Unknown-Namespace-Management-Process-";
+    }
 
+    return workflowIDPrefix + pNamespaceName;
+  }
 
+  private WorkflowStub getWFstub(String workflowType, String pNamespaceName) {
+
+    String workflowId = getWorkflowID(workflowType, pNamespaceName);
+    logger.debug("Returning workflow stub for workflow ID [{}]", workflowId);
+    /**
+     * Start a workflow to manage the state for the UI.
+     */
+    return client.newUntypedWorkflowStub(workflowType,
+        WorkflowOptions.newBuilder()
+            .setWorkflowId(workflowId)
+            .setTaskQueue(this.MANAGE_WORKFLOW_TASK_QUEUE)
+            .build());
+
+  } // End getWFStub
+
+  private CloudOperationsNamespace startWorkflow(String workflowType,
+      CloudOperationsNamespace pCloudOpsNamespace,
+      WorkflowMetadata pwfMetadata)
+      throws io.temporal.client.WorkflowException {
+
+    /**
+     * Start a workflow to manage the state for the UI.
+     */
+    WorkflowStub untypedWFStub = this.getWFstub(workflowType, pCloudOpsNamespace.getName());
+
+    // blocks until Workflow Execution has been started (not until it completes)
+    WorkflowMetadata wfStatus = new WorkflowMetadata();
+
+    untypedWFStub.start(pwfMetadata, pCloudOpsNamespace);
+
+    boolean awaitPopulationOfNamespaceDetails = true;
+    int counter = 0;
+    while (awaitPopulationOfNamespaceDetails) {
+      try {
+        Thread.sleep(1000);
+      } catch (InterruptedException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+      }
+      counter++;
+      wfStatus = untypedWFStub.query("getWFMetadata", WorkflowMetadata.class);
+      if (wfStatus == null) {
+        logger.debug(
+            "The query on the worflow metadata returned null.  Retrying in the hope that the workflow is still initialising itself.");
+        if (counter > 100)
+          break;
+      } else if ((wfStatus.getNsDataGathered() != null) && (wfStatus.getNsDataGathered())) {
+        logger.debug("Got the initial information on the namespace to show user.");
+        awaitPopulationOfNamespaceDetails = false;
+      }
+    }
+    CloudOperationsNamespace cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
+    if (cloudOpsNS == null)
+      logger.debug("For some reason our query returned the namespace as null.");
+    else
+      logger.debug("The namespace returned from the workflow is [{}]", cloudOpsNS.toString());
+
+    return cloudOpsNS;
+  } // End startWorkflow
 
   @GetMapping("namespace-management")
   public String getNamespaces(@RequestParam(required = false) String apiKey, Model model) {
@@ -232,4 +275,55 @@ public class NamespaceController {
 
   }
 
+  @GetMapping(value = { "/namespace-management-delete", "/namespace-management-delete/{namespaceName}" })
+  public String deleteNamespace(@PathVariable(required = true, value = "namespaceName") String namespaceName,
+      @RequestParam(required = true, value = "apiKey") String apiKey,
+      Model model) {
+    logger.debug("MethodEntry - deleteNamespace");
+    logger.debug("The namespace we want to delete is - {}", namespaceName);
+
+    // Start the delete workflow, wait for it to initialise itself and then set the
+    // opsNamespace model and wf status up
+    // Once initialised return control to the user to consider performing the actual
+    // delete via form post.
+    CloudOperationsNamespace cloudOpsNS = new CloudOperationsNamespace();
+    cloudOpsNS.setName(namespaceName);
+    WorkflowMetadata wfMetadata = new WorkflowMetadata();
+    wfMetadata.setApiKey(apiKey);
+
+    try {
+      cloudOpsNS = startWorkflow(NamespaceController.WORKFLOW_TYPE_DELETE_NAMESPACE, cloudOpsNS, wfMetadata);
+
+    } catch (io.temporal.client.WorkflowException e) {
+      logger.debug("Cause of error is [{}]", e.getCause().getMessage());
+      model.addAttribute("status", e.getCause().getMessage());
+      if (e.getCause().getMessage().contains("ALREADY_EXISTS")) {
+            WorkflowStub untypedWFStub = client.newUntypedWorkflowStub(
+            this.getWorkflowID(NamespaceController.WORKFLOW_TYPE_DELETE_NAMESPACE, namespaceName));
+        cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
+      }
+    }
+    model.addAttribute("title", "Namespace Management");
+    model.addAttribute("metadata", wfMetadata);
+    model.addAttribute("namespace", cloudOpsNS);
+
+    return "namespace-management-delete";
+
+  } // End deleteNamespace
+
+  @DeleteMapping(value = "/namespace-management-delete/{namespaceName}")
+  public String signalNamespaceDeletion(@PathVariable(required = true, value = "namespaceName") String namespaceName,
+                                      Model model) 
+                                      { 
+                                        logger.debug("methodEntry - signalNamespaceDeletion foe Namespace [{}]", namespaceName);
+
+                                        // Signal the delete workflow to progress with the delete.
+                                        WorkflowStub untypedWFStub = client.newUntypedWorkflowStub(
+                                              this.getWorkflowID(NamespaceController.WORKFLOW_TYPE_DELETE_NAMESPACE, namespaceName));
+
+                                        untypedWFStub.signal("setApproved");
+
+                                        model.addAttribute("status", "Namespace [" + namespaceName +  "] is being deleted.");
+                                        return "namespace-management";
+                                      }
 }

@@ -62,7 +62,11 @@
 			<version>1.23.2</version>
 			<optional>true</optional>
 		</dependency>
-	
+		<dependency>
+			<groupId>org.webjars.npm</groupId>
+			<artifactId>font-awesome</artifactId>
+			<version>4.7.0</version>
+		</dependency>
  </dependencies>
 
 	<build>

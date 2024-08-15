@@ -68,6 +68,8 @@ money-transfer:
           optionDescription: Bug in workflow (Recoverable failure)
         - option: INVALID_ACCOUNT
           optionDescription: Invalid account selected (Unrecoverable failure)
+        - option: FAIL_DEPOSIT
+          optionDescription: Deposit Failure (Unrecoverable failure)
 
 cloud-operations-service:
   host: localhost
