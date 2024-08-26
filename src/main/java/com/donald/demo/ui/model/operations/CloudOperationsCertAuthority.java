@@ -9,5 +9,6 @@ public class CloudOperationsCertAuthority {
     private String expiryDate;
     private String notBefore;
     private String subjectPrincipal;
+    private String issuerPrincipal;
     private Collection<String> alternativeNames;
 }

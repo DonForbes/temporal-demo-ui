@@ -56,7 +56,7 @@
                 'method': 'DELETE',
                 'contentType': 'application/json',
                 'success': function (response) {
-                    $("#result").empty().append(response);
+                    //$("#result").empty().append(response);
                     document.getElementById("status").nodeValue = "Signalled Workflow to delete namespace";
 
                     sleep(1500);
@@ -76,5 +76,3 @@
         }
     </script>
 </body>
-
-</html>

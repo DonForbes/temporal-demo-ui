@@ -100,7 +100,7 @@
         }
 
         function scheduleNS(event) {
-            alert("TODO - Implement scheduling of rotation for " + event.target.getAttribute("namespace"));
+            window.location.href = "/namespace-management-schedule/" +  event.target.getAttribute("namespace") + "?apiKey=[[*{apiKey}]]";
 
         }  // End sceheduleNS
     </script>

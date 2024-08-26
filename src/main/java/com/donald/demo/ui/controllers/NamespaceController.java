@@ -3,8 +3,10 @@ package com.donald.demo.ui.controllers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.client.HttpClientErrorException;
@@ -31,19 +34,37 @@ import com.donald.demo.ui.model.operations.CloudOpsConfig;
 import com.donald.demo.ui.model.operations.CloudOpsServerConfig;
 import com.donald.demo.ui.model.operations.WorkflowMetadata;
 
+import io.temporal.api.enums.v1.ScheduleOverlapPolicy;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
+import io.temporal.client.schedules.Schedule;
+import io.temporal.client.schedules.ScheduleActionStartWorkflow;
+import io.temporal.client.schedules.ScheduleCalendarSpec;
+import io.temporal.client.schedules.ScheduleClient;
+import io.temporal.client.schedules.ScheduleHandle;
+import io.temporal.client.schedules.ScheduleIntervalSpec;
+import io.temporal.client.schedules.ScheduleOptions;
+import io.temporal.client.schedules.SchedulePolicy;
+import io.temporal.client.schedules.ScheduleRange;
+import io.temporal.client.schedules.ScheduleSpec;
+import io.temporal.client.schedules.ScheduleState;
+import io.temporal.client.schedules.ScheduleUpdate;
+import io.temporal.client.schedules.ScheduleUpdateInput;
+import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.workflow.ExternalWorkflowStub;
 import io.temporal.workflow.Workflow;
 
 import com.donald.demo.ui.model.operations.CloudOperationsNamespace;
 import com.donald.demo.ui.model.operations.CloudOperationsRegions;
+import com.donald.demo.ui.model.operations.CloudOperationsSchedule;
 
 @Controller
 public class NamespaceController {
   @Autowired
   CloudOpsServerConfig cloudOpsServerConfig;
+  @Autowired
+  ScheduleClient scheduleClient;
   @Autowired
   WorkflowClient client;
   @Autowired
@@ -54,6 +75,9 @@ public class NamespaceController {
   private static final String WORKFLOW_TYPE_MANAGE_NAMESPACE = "ManageNamespace";
   private static final String DELETE_WORKFLOW_PREFIX = "delete-namespace-";
   private static final String WORKFLOW_TYPE_DELETE_NAMESPACE = "DeleteNamespace";
+  private static final String SCHEDULE_WORKFLOW_PREFIX = "schedule-namespace-cert-rotation-";
+  private static final String WORKFLOW_TYPE_SCHEDULE_NAMESPACE = "ScheduleNamespaceCertRotation";
+
   private static final String MANAGE_WORKFLOW_TASK_QUEUE = "ManageNamespaceTaskQueue";
 
   @PostMapping("/namespace-update")
@@ -155,6 +179,9 @@ public class NamespaceController {
         break;
       case NamespaceController.WORKFLOW_TYPE_DELETE_NAMESPACE:
         workflowIDPrefix = NamespaceController.DELETE_WORKFLOW_PREFIX;
+        break;
+      case NamespaceController.WORKFLOW_TYPE_SCHEDULE_NAMESPACE:
+        workflowIDPrefix = NamespaceController.SCHEDULE_WORKFLOW_PREFIX;
         break;
       default:
         workflowIDPrefix = "Unknown-Namespace-Management-Process-";
@@ -298,7 +325,7 @@ public class NamespaceController {
       logger.debug("Cause of error is [{}]", e.getCause().getMessage());
       model.addAttribute("status", e.getCause().getMessage());
       if (e.getCause().getMessage().contains("ALREADY_EXISTS")) {
-            WorkflowStub untypedWFStub = client.newUntypedWorkflowStub(
+        WorkflowStub untypedWFStub = client.newUntypedWorkflowStub(
             this.getWorkflowID(NamespaceController.WORKFLOW_TYPE_DELETE_NAMESPACE, namespaceName));
         cloudOpsNS = untypedWFStub.query("getNamespaceDetails", CloudOperationsNamespace.class);
       }
@@ -313,17 +340,113 @@ public class NamespaceController {
 
   @DeleteMapping(value = "/namespace-management-delete/{namespaceName}")
   public String signalNamespaceDeletion(@PathVariable(required = true, value = "namespaceName") String namespaceName,
-                                      Model model) 
-                                      { 
-                                        logger.debug("methodEntry - signalNamespaceDeletion foe Namespace [{}]", namespaceName);
+      Model model) {
+    logger.debug("methodEntry - signalNamespaceDeletion foe Namespace [{}]", namespaceName);
 
-                                        // Signal the delete workflow to progress with the delete.
-                                        WorkflowStub untypedWFStub = client.newUntypedWorkflowStub(
-                                              this.getWorkflowID(NamespaceController.WORKFLOW_TYPE_DELETE_NAMESPACE, namespaceName));
+    // Signal the delete workflow to progress with the delete.
+    WorkflowStub untypedWFStub = client.newUntypedWorkflowStub(
+        this.getWorkflowID(NamespaceController.WORKFLOW_TYPE_DELETE_NAMESPACE, namespaceName));
 
-                                        untypedWFStub.signal("setApproved");
+    untypedWFStub.signal("setApproved");
 
-                                        model.addAttribute("status", "Namespace [" + namespaceName +  "] is being deleted.");
-                                        return "namespace-management";
-                                      }
+    model.addAttribute("status", "Namespace [" + namespaceName + "] is being deleted.");
+    return "namespace-management";
+  }
+
+  @PostMapping(value = "/namespace-management-schedule/{namespaceName}")
+  public String scheduleNamespaceCertRotation(
+      @PathVariable(required = true, value = "namespaceName") String namespaceName,
+      @RequestHeader("Authorization") String apiKeyBearer,
+      @RequestBody CloudOperationsSchedule cloudOpsSchedule,
+      Model model) {
+    // Controller to set the schedule for a workflow and schedule it to run on a
+    // given frequency.
+    // Not providing all possible options, just using the interval to allow it to be
+    // set every so many mins/hours/days
+    CloudOperationsNamespace cloudOpsNamespace = new CloudOperationsNamespace();
+    cloudOpsNamespace.setName(namespaceName);
+    logger.debug("The authentication details are [{}]" + apiKeyBearer);
+    logger.debug("THe schedule is [{}]", cloudOpsSchedule.toString());
+    WorkflowMetadata wfMetadata = new WorkflowMetadata();
+    wfMetadata.setApiKey(apiKeyBearer.replace("Bearer ", ""));
+
+    WorkflowOptions workflowOptions = WorkflowOptions.newBuilder()
+        .setWorkflowId(this.getWorkflowID(this.WORKFLOW_TYPE_SCHEDULE_NAMESPACE, namespaceName))
+        .setTaskQueue(this.MANAGE_WORKFLOW_TASK_QUEUE)
+        .build();
+
+    ScheduleActionStartWorkflow action = ScheduleActionStartWorkflow.newBuilder()
+        .setWorkflowType("ScheduleNamespaceCertRotation")
+        .setArguments(cloudOpsNamespace, wfMetadata)
+        .setOptions(workflowOptions)
+        .build();
+
+    Schedule schedule = Schedule.newBuilder()
+        .setAction(action)
+        .setSpec(ScheduleSpec.newBuilder().build())
+        .build();
+
+    ScheduleHandle handle;
+    try {
+        handle = scheduleClient.createSchedule(this.getWorkflowID(this.WORKFLOW_TYPE_SCHEDULE_NAMESPACE, namespaceName),
+                                                             schedule,
+                                                             ScheduleOptions.newBuilder().build());
+
+    } catch (io.temporal.client.schedules.ScheduleAlreadyRunningException except) {
+      logger.error("Schedule already exists.  Capturing the error in the logs but continue processing.");
+    }
+
+    handle = scheduleClient.getHandle(this.getWorkflowID(this.WORKFLOW_TYPE_SCHEDULE_NAMESPACE, namespaceName));
+    handle.trigger(ScheduleOverlapPolicy.SCHEDULE_OVERLAP_POLICY_TERMINATE_OTHER);
+
+    Duration scheduleDuration = cloudOpsSchedule.getDuration();
+
+    // Update the schedule with a spec, so it will run periodically
+    handle.update(
+        (ScheduleUpdateInput input) -> {
+
+          Schedule.Builder builder = Schedule.newBuilder(input.getDescription().getSchedule());
+
+          builder.setSpec(
+              ScheduleSpec.newBuilder()
+                  .setIntervals(Collections.singletonList(new ScheduleIntervalSpec(scheduleDuration)))
+                  .build());
+          
+          builder.setState(
+              ScheduleState.newBuilder()
+                  .setPaused(false)
+                  .setLimitedAction(true)
+                  .setRemainingActions(10)   // For testing purposes just limit to 10 runs - tis just a demo
+                  .build());
+
+            // Temporal's default schedule policy is 'skip'
+            builder.setPolicy(
+              SchedulePolicy.newBuilder()
+                  .setOverlap(ScheduleOverlapPolicy.SCHEDULE_OVERLAP_POLICY_TERMINATE_OTHER)
+                  .build());
+
+          return new ScheduleUpdate(builder.build());
+        });
+
+    return "namespace-management";
+
+  } // End scheduleNamespaceCertRotation (Post Mapping)
+
+  @GetMapping(value = "/namespace-management-schedule/{namespaceName}")
+  public String displayNamespaceCertRotation(
+      @PathVariable(required = true, value = "namespaceName") String namespaceName,
+      @RequestParam(required = true, value = "apiKey") String apiKey,
+      Model model) {
+
+    CloudOperationsNamespace cloudOpsNamespace = new CloudOperationsNamespace();
+    cloudOpsNamespace.setName(namespaceName);
+    WorkflowMetadata wfMetadata = new WorkflowMetadata();
+    wfMetadata.setApiKey(apiKey);
+
+    model.addAttribute("namespace", cloudOpsNamespace);
+    model.addAttribute("title", "Schedule Namespace CA Certificate Rotation - " + cloudOpsNamespace.getName());
+    model.addAttribute("metadata", wfMetadata);
+    model.addAttribute("status", "OK");
+    return "namespace-management-schedule";
+  }
 }

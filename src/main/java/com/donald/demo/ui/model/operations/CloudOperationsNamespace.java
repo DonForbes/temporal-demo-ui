@@ -21,7 +21,8 @@ public class CloudOperationsNamespace {
         return cloudOpsNs;
     }
     
-    public String getCertAuthorityPublicCertificates() {
+ /**    
+  * public String getCertAuthorityPublicCertificates() {
         StringBuilder returnCerts = new StringBuilder();
         if (this.getCertAuthorityPublicCerts() != null) {
             for (CloudOperationsCertAuthority ca : this.certAuthorityPublicCerts) {
@@ -50,4 +51,5 @@ public class CloudOperationsNamespace {
         certAuthorityPublicCertificates = CACerts.toString();
 
     }
+        */
 }

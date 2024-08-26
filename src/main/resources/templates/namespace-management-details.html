@@ -66,7 +66,7 @@
               <tbody>
                 <tr th:each="certificateAuth : ${namespace.certAuthorityPublicCerts}">
                   <td width="60%">
-                    <div style="word-wrap: break-word; width: 600px;"><a th:text="${certificateAuth.caCert}"></a></div>
+                    <div style="word-wrap: break-word; width: 66ch;"><a th:text="${certificateAuth.caCert}"></a></div>
                   </td>
                   <td width="10%"><a th:text="${certificateAuth.notBefore}"></a></td>
                   <td width="10%"><a th:text="${certificateAuth.expiryDate}"></a></td>
