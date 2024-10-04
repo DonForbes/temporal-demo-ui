@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.2.5</version>
+		<version>3.3.4</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.donald.demo</groupId>
@@ -40,7 +40,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.32</version>
+            <!-- <version>1.18.32</version>  -->
             <scope>provided</scope>
         </dependency>
 
@@ -53,13 +53,13 @@
 		<dependency>
 			<groupId>io.temporal</groupId>
 			<artifactId>temporal-sdk</artifactId>
-			<version>1.23.2</version>
+			<version>1.25.2</version>
 			<optional>true</optional>
 		</dependency>
 		<dependency>
 		    <groupId>io.temporal</groupId>
-			<artifactId>temporal-spring-boot-starter-alpha</artifactId>
-			<version>1.23.2</version>
+			<artifactId>temporal-spring-boot-starter</artifactId>
+			<version>1.25.2</version>
 			<optional>true</optional>
 		</dependency>
 		<dependency>
